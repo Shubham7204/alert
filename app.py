@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import mysql.connector
@@ -6,26 +6,39 @@ import asyncio
 import json
 import random
 from datetime import datetime
-from typing import List
+from typing import Dict, List
 
 app = FastAPI()
 
-# WebSocket connections manager
-class ConnectionManager:
+# Enhanced WebSocket connections manager for multiple video streams
+class VideoConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        # Dictionary to store connections by video_id
+        self.video_connections: Dict[str, List[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, video_id: str):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        if video_id not in self.video_connections:
+            self.video_connections[video_id] = []
+        self.video_connections[video_id].append(websocket)
+        print(f"Client connected to video stream {video_id}")
 
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+    def disconnect(self, websocket: WebSocket, video_id: str):
+        if video_id in self.video_connections:
+            if websocket in self.video_connections[video_id]:
+                self.video_connections[video_id].remove(websocket)
+            # Clean up empty video streams
+            if not self.video_connections[video_id]:
+                del self.video_connections[video_id]
+        print(f"Client disconnected from video stream {video_id}")
 
-    async def broadcast(self, message: str):
+    async def broadcast_to_video(self, video_id: str, message: str):
+        """Send message to all clients connected to specific video stream"""
+        if video_id not in self.video_connections:
+            return
+        
         disconnected = []
-        for connection in self.active_connections:
+        for connection in self.video_connections[video_id]:
             try:
                 await connection.send_text(message)
             except:
@@ -33,9 +46,22 @@ class ConnectionManager:
         
         # Remove disconnected clients
         for conn in disconnected:
-            self.disconnect(conn)
+            self.disconnect(conn, video_id)
 
-manager = ConnectionManager()
+    async def broadcast_to_all(self, message: str):
+        """Send message to all connected clients across all video streams"""
+        for video_id in list(self.video_connections.keys()):
+            await self.broadcast_to_video(video_id, message)
+
+    def get_active_streams(self) -> List[str]:
+        """Get list of video streams with active connections"""
+        return list(self.video_connections.keys())
+
+    def get_connection_count(self, video_id: str) -> int:
+        """Get number of active connections for a video stream"""
+        return len(self.video_connections.get(video_id, []))
+
+manager = VideoConnectionManager()
 
 # Database connection - UPDATE THESE CREDENTIALS
 def get_db_connection():
@@ -60,9 +86,9 @@ async def test_database():
     else:
         return {"status": "Database connection failed"}
 
-# Simulate face detection and insert alert
-@app.post("/simulate-detection")
-async def simulate_detection():
+# Simulate face detection for specific video
+@app.post("/simulate-detection/{video_id}")
+async def simulate_detection_for_video(video_id: str):
     conn = get_db_connection()
     if not conn:
         return {"error": "Database connection failed"}
@@ -70,7 +96,7 @@ async def simulate_detection():
     cursor = conn.cursor()
     
     try:
-        # First check if blacklisted_persons exist
+        # Check if blacklisted_persons exist
         cursor.execute("SELECT id FROM blacklisted_persons LIMIT 3")
         persons = cursor.fetchall()
         
@@ -86,29 +112,34 @@ async def simulate_detection():
             cursor.execute("SELECT id FROM blacklisted_persons LIMIT 3")
             persons = cursor.fetchall()
         
-        # Simulate random detection
-        cameras = ["CAM_001_Entrance", "CAM_002_Lobby", "CAM_003_Parking"]
+        # Simulate detection for specific video
+        cameras = [f"CAM_{video_id}_Entrance", f"CAM_{video_id}_Main", f"CAM_{video_id}_Exit"]
         
         person_id = random.choice(persons)[0]
         camera = random.choice(cameras)
         confidence = round(random.uniform(75.0, 99.9), 2)
         
-        # Insert into security_alerts (this will trigger the database trigger)
+        # Insert with video_id
         cursor.execute("""
-            INSERT INTO security_alerts (person_id, camera_location, confidence_score) 
-            VALUES (%s, %s, %s)
-        """, (person_id, camera, confidence))
+            INSERT INTO security_alerts (person_id, camera_location, video_id, confidence_score) 
+            VALUES (%s, %s, %s, %s)
+        """, (person_id, camera, video_id, confidence))
         
         alert_id = cursor.lastrowid
         conn.commit()
         
-        return {"message": "Detection simulated", "alert_id": alert_id}
+        return {"message": f"Detection simulated for video {video_id}", "alert_id": alert_id}
         
     except Exception as e:
         return {"error": f"Database error: {str(e)}"}
     finally:
         cursor.close()
         conn.close()
+
+# Keep the original endpoint for backward compatibility
+@app.post("/simulate-detection")
+async def simulate_detection():
+    return await simulate_detection_for_video("general")
 
 # Background task to monitor notification queue
 async def monitor_notifications():
@@ -123,7 +154,7 @@ async def monitor_notifications():
             
             # Check for unprocessed notifications
             cursor.execute("""
-                SELECT nq.*, sa.person_id, sa.camera_location, sa.confidence_score, 
+                SELECT nq.*, sa.person_id, sa.camera_location, sa.video_id, sa.confidence_score, 
                        sa.detection_time, bp.name, bp.threat_level
                 FROM notification_queue nq
                 JOIN security_alerts sa ON nq.alert_id = sa.id
@@ -139,13 +170,15 @@ async def monitor_notifications():
                     "person_name": notification['name'],
                     "threat_level": notification['threat_level'],
                     "camera_location": notification['camera_location'],
+                    "video_id": notification['video_id'],
                     "confidence_score": float(notification['confidence_score']),
                     "detection_time": notification['detection_time'].isoformat(),
                     "message": notification['message']
                 }
                 
-                # Send to frontend via WebSocket
-                await manager.broadcast(json.dumps(alert_data))
+                # Send to specific video stream clients
+                video_id = notification['video_id'] or "general"
+                await manager.broadcast_to_video(video_id, json.dumps(alert_data))
                 
                 # Mark as processed
                 cursor.execute(
@@ -162,17 +195,81 @@ async def monitor_notifications():
         
         await asyncio.sleep(2)  # Check every 2 seconds
 
-# WebSocket endpoint for real-time alerts
+# WebSocket endpoint for specific video stream
+@app.websocket("/ws/video/{video_id}")
+async def video_websocket_endpoint(websocket: WebSocket, video_id: str):
+    await manager.connect(websocket, video_id)
+    try:
+        while True:
+            # Keep connection alive and handle any incoming messages
+            data = await websocket.receive_text()
+            # You can handle client messages here if needed
+            print(f"Received message from video {video_id}: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, video_id)
+    except Exception as e:
+        print(f"WebSocket error for video {video_id}: {e}")
+        manager.disconnect(websocket, video_id)
+
+# General WebSocket endpoint (for backward compatibility)
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def general_websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket, "general")
     try:
         while True:
             data = await websocket.receive_text()
-            # Keep connection alive
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, "general")
     except Exception as e:
         print(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, "general")
+
+# Get active video streams
+@app.get("/active-streams")
+async def get_active_streams():
+    """Get list of active video streams"""
+    streams = []
+    for video_id in manager.get_active_streams():
+        streams.append({
+            "video_id": video_id,
+            "connections": manager.get_connection_count(video_id)
+        })
+    return {"active_streams": streams}
+
+# Get alerts for specific video stream
+@app.get("/alerts/{video_id}")
+async def get_alerts_for_video(video_id: str):
+    """Get alerts for specific video stream"""
+    conn = get_db_connection()
+    if not conn:
+        return {"error": "Database connection failed"}
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("""
+            SELECT sa.*, bp.name, bp.threat_level
+            FROM security_alerts sa
+            JOIN blacklisted_persons bp ON sa.person_id = bp.id
+            WHERE sa.video_id = %s OR (sa.video_id IS NULL AND %s = 'general')
+            ORDER BY sa.detection_time DESC
+            LIMIT 50
+        """, (video_id, video_id))
+        
+        alerts = cursor.fetchall()
+        
+        # Convert datetime to string for JSON serialization
+        for alert in alerts:
+            if alert['detection_time']:
+                alert['detection_time'] = alert['detection_time'].isoformat()
+            alert['confidence_score'] = float(alert['confidence_score'])
+        
+        return {"video_id": video_id, "alerts": alerts}
+    except Exception as e:
+        return {"error": f"Database error: {str(e)}"}
+    finally:
+        cursor.close()
+        conn.close()
 
 # Get all alerts
 @app.get("/alerts")

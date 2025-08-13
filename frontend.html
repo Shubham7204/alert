@@ -1,32 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Security Alert System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Video Security Alert System</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Video Stream Grid */
+        .video-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+            gap: 20px; 
+            margin: 20px 0; 
+        }
+        
+        .video-stream { 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .video-header { 
+            padding: 15px; 
+            background: #007bff; 
+            color: white; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        
+        .video-title { font-size: 1.2em; font-weight: bold; }
+        
+        .connection-status { 
+            padding: 5px 10px; 
+            border-radius: 15px; 
+            font-size: 0.8em; 
+            font-weight: bold;
+        }
+        
+        .status-connected { background: #28a745; }
+        .status-disconnected { background: #dc3545; }
+        .status-connecting { background: #ffc107; color: #000; }
+        
+        .video-controls { 
+            padding: 15px; 
+            border-bottom: 1px solid #eee;
+        }
+        
+        .video-stats { 
+            display: flex; 
+            gap: 15px; 
+            margin: 10px 0;
+        }
+        
+        .mini-stat { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 5px; 
+            text-align: center; 
+            flex: 1;
+        }
+        
+        .mini-stat-number { font-size: 1.5em; font-weight: bold; color: #007bff; }
+        .mini-stat-label { font-size: 0.8em; color: #666; }
+        
+        .alerts-container { 
+            max-height: 400px; 
+            overflow-y: auto; 
+            padding: 15px;
+        }
+        
         .alert { 
             border: 2px solid #ff4444; 
-            padding: 15px; 
-            margin: 10px 0; 
+            padding: 10px; 
+            margin: 8px 0; 
             border-radius: 5px;
             background-color: #ffe6e6;
             animation: slideIn 0.3s ease-out;
+            font-size: 0.9em;
         }
+        
         .alert.HIGH { border-color: #ff0000; background-color: #ffcccc; }
         .alert.MEDIUM { border-color: #ff6600; background-color: #ffe6cc; }
         .alert.LOW { border-color: #ffcc00; background-color: #ffffcc; }
-        .controls { 
+        
+        .alert-header { 
+            display: flex; 
+            justify-content: space-between; 
+            font-weight: bold; 
+            margin-bottom: 5px;
+        }
+        
+        .alert-time { font-size: 0.8em; color: #666; }
+        
+        /* Global Controls */
+        .global-controls { 
             margin: 20px 0; 
             padding: 20px; 
             background: white; 
             border-radius: 10px; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
+        
         button { 
-            padding: 12px 24px; 
+            padding: 10px 20px; 
             margin: 5px; 
-            font-size: 16px; 
+            font-size: 14px; 
             border: none; 
             border-radius: 5px; 
             cursor: pointer;
@@ -34,28 +115,23 @@
             color: white;
             transition: background 0.3s;
         }
+        
         button:hover { background: #0056b3; }
         .simulate { background: #28a745; }
         .simulate:hover { background: #1e7e34; }
         .clear { background: #dc3545; }
         .clear:hover { background: #c82333; }
-        #status { 
-            padding: 15px; 
-            background: #e6ffe6; 
-            border-radius: 5px; 
-            margin: 10px 0;
-            border-left: 5px solid #28a745;
-        }
-        #status.disconnected { 
-            background: #ffe6e6; 
-            border-left-color: #dc3545;
-        }
-        .stats { 
+        .info { background: #17a2b8; }
+        .info:hover { background: #138496; }
+        
+        /* Global Stats */
+        .global-stats { 
             display: flex; 
             gap: 20px; 
             margin: 20px 0; 
         }
-        .stat-card { 
+        
+        .global-stat-card { 
             background: white; 
             padding: 20px; 
             border-radius: 10px; 
@@ -63,140 +139,449 @@
             flex: 1;
             text-align: center;
         }
-        .stat-number { font-size: 2em; font-weight: bold; color: #007bff; }
+        
+        .global-stat-number { font-size: 2.5em; font-weight: bold; color: #007bff; }
+        .global-stat-label { font-size: 1em; color: #666; margin-top: 5px; }
+        
         @keyframes slideIn {
             from { transform: translateX(-100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .video-grid { grid-template-columns: 1fr; }
+            .global-stats { flex-direction: column; }
+            .video-stats { flex-direction: column; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚨 Security Alert System POC</h1>
-        <div class="controls">
-            <button class="simulate" onclick="simulateDetection()">🔍 Simulate Face Detection</button>
-            <button onclick="testDatabase()">🗄️ Test Database</button>
-            <button class="clear" onclick="clearAlerts()">🗑️ Clear Alerts</button>
+        <h1>🎥 Multi-Video Security Alert System</h1>
+        
+        <!-- Global Controls -->
+        <div class="global-controls">
+            <h3>Global Controls</h3>
+            <div style="margin-bottom: 15px;">
+                <button onclick="testDatabase()">🗄️ Test Database</button>
+                <button onclick="clearAllAlerts()" class="clear">🗑️ Clear All Alerts</button>
+                <button onclick="refreshActiveStreams()" class="info">🔄 Refresh Streams</button>
+                <button onclick="simulateRandomDetection()" class="simulate">🎲 Random Detection</button>
+            </div>
+            
+            <!-- Auto-Simulation Controls -->
+            <div style="border-top: 1px solid #eee; padding-top: 15px;">
+                <h4>🤖 Auto-Simulation</h4>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button id="auto-sim-btn" onclick="toggleAutoSimulation()" class="simulate">
+                        ▶️ Start Auto-Sim
+                    </button>
+                    <label>
+                        Interval: 
+                        <select id="sim-interval" style="margin-left: 5px; padding: 5px;">
+                            <option value="3000">3 seconds</option>
+                            <option value="5000" selected>5 seconds</option>
+                            <option value="10000">10 seconds</option>
+                            <option value="15000">15 seconds</option>
+                            <option value="30000">30 seconds</option>
+                        </select>
+                    </label>
+                    <label>
+                        <input type="checkbox" id="concurrent-mode" checked> Concurrent Mode
+                    </label>
+                    <span id="auto-sim-status" style="color: #666; font-size: 0.9em;">Stopped</span>
+                </div>
+            </div>
         </div>
-        <div id="status">Connecting to alert system...</div>
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-number" id="total-alerts">0</div>
-                <div>Total Alerts</div>
+        
+        <!-- Global Stats -->
+        <div class="global-stats">
+            <div class="global-stat-card">
+                <div class="global-stat-number" id="global-total-alerts">0</div>
+                <div class="global-stat-label">Total Alerts</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number" id="high-threat">0</div>
-                <div>High Threat</div>
+            <div class="global-stat-card">
+                <div class="global-stat-number" id="global-active-streams">0</div>
+                <div class="global-stat-label">Active Streams</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-number" id="avg-confidence">0%</div>
-                <div>Avg Confidence</div>
+            <div class="global-stat-card">
+                <div class="global-stat-number" id="global-high-threat">0</div>
+                <div class="global-stat-label">High Threat</div>
+            </div>
+            <div class="global-stat-card">
+                <div class="global-stat-number" id="global-avg-confidence">0%</div>
+                <div class="global-stat-label">Avg Confidence</div>
             </div>
         </div>
-        <div id="alerts-container">
-            <h2>🔴 Real-time Security Alerts</h2>
-            <div id="alert-list"></div>
+        
+        <!-- Video Streams Grid -->
+        <div class="video-grid" id="video-grid">
+            <!-- Video stream cards will be dynamically generated here -->
         </div>
     </div>
     <script>
-        let ws;
-        let alertCount = 0;
-        let highThreatCount = 0;
-        let totalConfidence = 0;
-        function connectWebSocket() {
-            ws = new WebSocket("ws://localhost:8000/ws");
-            ws.onopen = function() {
-                document.getElementById('status').innerHTML = '✅ Connected to alert system - Ready for detections';
-                document.getElementById('status').className = '';
-            };
-            ws.onclose = function() {
-                document.getElementById('status').innerHTML = '❌ Disconnected from alert system - Attempting to reconnect...';
-                document.getElementById('status').className = 'disconnected';
-                setTimeout(connectWebSocket, 3000);
-            };
-            ws.onerror = function() {
-                document.getElementById('status').innerHTML = '⚠️ Connection error - Check if server is running';
-                document.getElementById('status').className = 'disconnected';
-            };
-            ws.onmessage = function(event) {
-                const alertData = JSON.parse(event.data);
-                displayAlert(alertData);
-                updateStats(alertData);
-                playAlertSound();
-            };
-        }
-        function displayAlert(alert) {
-            const alertElement = document.createElement('div');
-            alertElement.className = `alert ${alert.threat_level}`;
-            alertElement.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div><strong>🚨 SECURITY ALERT #${alertCount + 1}</strong></div>
-                    <div style="font-size: 0.9em; color: #666;">${new Date(alert.detection_time).toLocaleString()}</div>
-                </div>
-                <div style="margin: 10px 0;">
-                    <div><strong>👤 Person:</strong> ${alert.person_name}</div>
-                    <div><strong>⚠️ Threat Level:</strong> <span style="color: ${getThreatColor(alert.threat_level)}">${alert.threat_level}</span></div>
-                    <div><strong>📍 Location:</strong> ${alert.camera_location}</div>
-                    <div><strong>🎯 Confidence:</strong> ${alert.confidence_score}%</div>
-                </div>
-                <div style="background: rgba(0,0,0,0.1); padding: 10px; border-radius: 5px; font-style: italic;">
-                    ${alert.message}
-                </div>
-            `;
-            document.getElementById('alert-list').prepend(alertElement);
-        }
-        function getThreatColor(level) {
-            switch(level) {
-                case 'HIGH': return '#ff0000';
-                case 'MEDIUM': return '#ff6600';
-                case 'LOW': return '#ffaa00';
-                default: return '#333';
+        // Multi-Video Manager Class
+        class MultiVideoManager {
+            constructor() {
+                this.connections = new Map();
+                this.videoIds = ['camera1', 'camera2', 'camera3', 'general']; // Your video IDs
+                this.videoStats = new Map();
+                this.globalStats = {
+                    totalAlerts: 0,
+                    highThreatCount: 0,
+                    totalConfidence: 0,
+                    alertCount: 0
+                };
+                this.autoSimInterval = null; // For auto-simulation timer
+                
+                this.initializeVideoStreams();
+                this.connectToAllVideos();
             }
-        }
-        function updateStats(alert) {
-            alertCount++;
-            if (alert.threat_level === 'HIGH') {
-                highThreatCount++;
-            }
-            totalConfidence += alert.confidence_score;
-            document.getElementById('total-alerts').textContent = alertCount;
-            document.getElementById('high-threat').textContent = highThreatCount;
-            document.getElementById('avg-confidence').textContent = 
-                Math.round(totalConfidence / alertCount) + '%';
-        }
-        function playAlertSound() {
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                oscillator.frequency.value = 800;
-                oscillator.type = 'square';
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.5);
-            } catch (e) {
-                console.log('Audio not available');
-            }
-        }
-        async function simulateDetection() {
-            try {
-                const response = await fetch('/simulate-detection', {
-                    method: 'POST'
+
+            initializeVideoStreams() {
+                const videoGrid = document.getElementById('video-grid');
+                
+                this.videoIds.forEach(videoId => {
+                    // Initialize stats for each video
+                    this.videoStats.set(videoId, {
+                        alertCount: 0,
+                        highThreatCount: 0,
+                        totalConfidence: 0,
+                        connectionStatus: 'disconnected'
+                    });
+                    
+                    // Create video stream card
+                    const videoCard = this.createVideoCard(videoId);
+                    videoGrid.appendChild(videoCard);
                 });
-                const result = await response.json();
-                if (result.error) {
-                    alert('Error: ' + result.error);
-                } else {
-                    console.log('Detection simulated:', result);
+            }
+
+            createVideoCard(videoId) {
+                const card = document.createElement('div');
+                card.className = 'video-stream';
+                card.id = `video-${videoId}`;
+                
+                card.innerHTML = `
+                    <div class="video-header">
+                        <div class="video-title">📹 ${videoId.toUpperCase()}</div>
+                        <div class="connection-status status-disconnected" id="status-${videoId}">
+                            DISCONNECTED
+                        </div>
+                    </div>
+                    
+                    <div class="video-controls">
+                        <button class="simulate" onclick="videoManager.simulateDetection('${videoId}')">
+                            🔍 Simulate Detection
+                        </button>
+                        <button onclick="videoManager.clearVideoAlerts('${videoId}')" class="clear">
+                            🗑️ Clear
+                        </button>
+                        <button onclick="videoManager.reconnectVideo('${videoId}')" class="info">
+                            🔄 Reconnect
+                        </button>
+                        
+                        <div class="video-stats">
+                            <div class="mini-stat">
+                                <div class="mini-stat-number" id="alerts-${videoId}">0</div>
+                                <div class="mini-stat-label">Alerts</div>
+                            </div>
+                            <div class="mini-stat">
+                                <div class="mini-stat-number" id="high-threat-${videoId}">0</div>
+                                <div class="mini-stat-label">High Threat</div>
+                            </div>
+                            <div class="mini-stat">
+                                <div class="mini-stat-number" id="confidence-${videoId}">0%</div>
+                                <div class="mini-stat-label">Avg Confidence</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alerts-container">
+                        <div id="alerts-${videoId}"></div>
+                    </div>
+                `;
+                
+                return card;
+            }
+
+            connectToVideo(videoId) {
+                const wsUrl = videoId === 'general' 
+                    ? `ws://localhost:8000/ws` 
+                    : `ws://localhost:8000/ws/video/${videoId}`;
+                    
+                const ws = new WebSocket(wsUrl);
+                
+                // Update connection status
+                this.updateConnectionStatus(videoId, 'connecting');
+                
+                ws.onopen = () => {
+                    console.log(`Connected to video ${videoId}`);
+                    this.updateConnectionStatus(videoId, 'connected');
+                };
+                
+                ws.onclose = () => {
+                    console.log(`Disconnected from video ${videoId}`);
+                    this.updateConnectionStatus(videoId, 'disconnected');
+                    // Auto-reconnect after 3 seconds
+                    setTimeout(() => this.connectToVideo(videoId), 3000);
+                };
+                
+                ws.onerror = () => {
+                    console.error(`Connection error for video ${videoId}`);
+                    this.updateConnectionStatus(videoId, 'disconnected');
+                };
+                
+                ws.onmessage = (event) => {
+                    const alertData = JSON.parse(event.data);
+                    this.displayAlert(videoId, alertData);
+                    this.updateVideoStats(videoId, alertData);
+                    this.updateGlobalStats(alertData);
+                    this.playAlertSound();
+                };
+                
+                this.connections.set(videoId, ws);
+            }
+
+            connectToAllVideos() {
+                this.videoIds.forEach(videoId => {
+                    this.connectToVideo(videoId);
+                });
+            }
+
+            updateConnectionStatus(videoId, status) {
+                const statusElement = document.getElementById(`status-${videoId}`);
+                const stats = this.videoStats.get(videoId);
+                
+                stats.connectionStatus = status;
+                
+                statusElement.className = `connection-status status-${status}`;
+                statusElement.textContent = status.toUpperCase();
+                
+                this.updateGlobalActiveStreams();
+            }
+
+            updateGlobalActiveStreams() {
+                const activeCount = Array.from(this.videoStats.values())
+                    .filter(stats => stats.connectionStatus === 'connected').length;
+                document.getElementById('global-active-streams').textContent = activeCount;
+            }
+
+            displayAlert(videoId, alert) {
+                const alertElement = document.createElement('div');
+                alertElement.className = `alert ${alert.threat_level}`;
+                
+                alertElement.innerHTML = `
+                    <div class="alert-header">
+                        <div>🚨 ALERT #${this.videoStats.get(videoId).alertCount + 1}</div>
+                        <div class="alert-time">${new Date(alert.detection_time).toLocaleString()}</div>
+                    </div>
+                    <div>
+                        <div><strong>👤</strong> ${alert.person_name}</div>
+                        <div><strong>⚠️</strong> <span style="color: ${this.getThreatColor(alert.threat_level)}">${alert.threat_level}</span></div>
+                        <div><strong>📍</strong> ${alert.camera_location}</div>
+                        <div><strong>🎯</strong> ${alert.confidence_score}%</div>
+                    </div>
+                `;
+                
+                const alertsContainer = document.getElementById(`alerts-${videoId}`);
+                alertsContainer.prepend(alertElement);
+            }
+
+            updateVideoStats(videoId, alert) {
+                const stats = this.videoStats.get(videoId);
+                stats.alertCount++;
+                
+                if (alert.threat_level === 'HIGH') {
+                    stats.highThreatCount++;
                 }
-            } catch (error) {
-                console.error('Error simulating detection:', error);
-                alert('Error connecting to server. Make sure it\'s running!');
+                
+                stats.totalConfidence += alert.confidence_score;
+                
+                // Update UI
+                document.getElementById(`alerts-${videoId}`).textContent = stats.alertCount;
+                document.getElementById(`high-threat-${videoId}`).textContent = stats.highThreatCount;
+                document.getElementById(`confidence-${videoId}`).textContent = 
+                    Math.round(stats.totalConfidence / stats.alertCount) + '%';
+            }
+
+            updateGlobalStats(alert) {
+                this.globalStats.alertCount++;
+                this.globalStats.totalAlerts++;
+                
+                if (alert.threat_level === 'HIGH') {
+                    this.globalStats.highThreatCount++;
+                }
+                
+                this.globalStats.totalConfidence += alert.confidence_score;
+                
+                // Update global UI
+                document.getElementById('global-total-alerts').textContent = this.globalStats.totalAlerts;
+                document.getElementById('global-high-threat').textContent = this.globalStats.highThreatCount;
+                document.getElementById('global-avg-confidence').textContent = 
+                    Math.round(this.globalStats.totalConfidence / this.globalStats.alertCount) + '%';
+            }
+
+            getThreatColor(level) {
+                switch(level) {
+                    case 'HIGH': return '#ff0000';
+                    case 'MEDIUM': return '#ff6600';
+                    case 'LOW': return '#ffaa00';
+                    default: return '#333';
+                }
+            }
+
+            async simulateDetection(videoId) {
+                try {
+                    const endpoint = videoId === 'general' 
+                        ? '/simulate-detection' 
+                        : `/simulate-detection/${videoId}`;
+                    
+                    const response = await fetch(endpoint, { method: 'POST' });
+                    const result = await response.json();
+                    
+                    if (result.error) {
+                        alert(`Error for ${videoId}: ${result.error}`);
+                    } else {
+                        console.log(`Detection simulated for ${videoId}:`, result);
+                    }
+                } catch (error) {
+                    console.error(`Error simulating detection for ${videoId}:`, error);
+                    alert(`Error connecting to server for ${videoId}!`);
+                }
+            }
+
+            clearVideoAlerts(videoId) {
+                document.getElementById(`alerts-${videoId}`).innerHTML = '';
+                const stats = this.videoStats.get(videoId);
+                
+                // Update global stats by subtracting this video's contribution
+                this.globalStats.totalAlerts -= stats.alertCount;
+                this.globalStats.highThreatCount -= stats.highThreatCount;
+                this.globalStats.totalConfidence -= stats.totalConfidence;
+                this.globalStats.alertCount -= stats.alertCount;
+                
+                // Reset video stats
+                stats.alertCount = 0;
+                stats.highThreatCount = 0;
+                stats.totalConfidence = 0;
+                
+                // Update UI
+                document.getElementById(`alerts-${videoId}`).textContent = '0';
+                document.getElementById(`high-threat-${videoId}`).textContent = '0';
+                document.getElementById(`confidence-${videoId}`).textContent = '0%';
+                
+                // Update global UI
+                document.getElementById('global-total-alerts').textContent = Math.max(0, this.globalStats.totalAlerts);
+                document.getElementById('global-high-threat').textContent = Math.max(0, this.globalStats.highThreatCount);
+                document.getElementById('global-avg-confidence').textContent = 
+                    this.globalStats.alertCount > 0 ? Math.round(this.globalStats.totalConfidence / this.globalStats.alertCount) + '%' : '0%';
+            }
+
+            reconnectVideo(videoId) {
+                // Close existing connection if any
+                if (this.connections.has(videoId)) {
+                    this.connections.get(videoId).close();
+                }
+                
+                // Reconnect
+                this.connectToVideo(videoId);
+            }
+
+            playAlertSound() {
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'square';
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                } catch (e) {
+                    console.log('Audio not available');
+                }
+            }
+
+            // Auto-simulation methods
+            startAutoSimulation() {
+                if (this.autoSimInterval) {
+                    return; // Already running
+                }
+
+                const interval = parseInt(document.getElementById('sim-interval').value);
+                const concurrentMode = document.getElementById('concurrent-mode').checked;
+                
+                console.log(`Starting auto-simulation: ${interval}ms interval, concurrent: ${concurrentMode}`);
+                
+                this.autoSimInterval = setInterval(() => {
+                    this.performAutoSimulation(concurrentMode);
+                }, interval);
+
+                // Update UI
+                document.getElementById('auto-sim-btn').innerHTML = '⏸️ Stop Auto-Sim';
+                document.getElementById('auto-sim-btn').className = 'clear';
+                document.getElementById('auto-sim-status').textContent = 'Running';
+                document.getElementById('auto-sim-status').style.color = '#28a745';
+            }
+
+            stopAutoSimulation() {
+                if (this.autoSimInterval) {
+                    clearInterval(this.autoSimInterval);
+                    this.autoSimInterval = null;
+                }
+
+                // Update UI
+                document.getElementById('auto-sim-btn').innerHTML = '▶️ Start Auto-Sim';
+                document.getElementById('auto-sim-btn').className = 'simulate';
+                document.getElementById('auto-sim-status').textContent = 'Stopped';
+                document.getElementById('auto-sim-status').style.color = '#666';
+                
+                console.log('Auto-simulation stopped');
+            }
+
+            performAutoSimulation(concurrentMode) {
+                if (concurrentMode) {
+                    // Simulate concurrent detections (2-3 cameras at once)
+                    const numConcurrent = Math.floor(Math.random() * 2) + 2; // 2 or 3 cameras
+                    const availableVideos = [...this.videoIds];
+                    const selectedVideos = [];
+
+                    // Randomly select cameras for concurrent detection
+                    for (let i = 0; i < numConcurrent && availableVideos.length > 0; i++) {
+                        const randomIndex = Math.floor(Math.random() * availableVideos.length);
+                        const selectedVideo = availableVideos.splice(randomIndex, 1)[0];
+                        selectedVideos.push(selectedVideo);
+                    }
+
+                    console.log(`Concurrent detection on: ${selectedVideos.join(', ')}`);
+
+                    // Simulate detections with small random delays to make it more realistic
+                    selectedVideos.forEach((videoId, index) => {
+                        setTimeout(() => {
+                            this.simulateDetection(videoId);
+                        }, index * Math.random() * 1000); // Random delay up to 1 second
+                    });
+                } else {
+                    // Single random detection
+                    this.simulateRandomDetection();
+                }
+            }
+
+            simulateRandomDetection() {
+                const randomVideoId = this.videoIds[Math.floor(Math.random() * this.videoIds.length)];
+                console.log(`Random detection on: ${randomVideoId}`);
+                this.simulateDetection(randomVideoId);
             }
         }
+
+        // Global functions for UI controls
         async function testDatabase() {
             try {
                 const response = await fetch('/test-db');
@@ -206,17 +591,45 @@
                 alert('Error testing database connection');
             }
         }
-        function clearAlerts() {
-            document.getElementById('alert-list').innerHTML = '';
-            alertCount = 0;
-            highThreatCount = 0;
-            totalConfidence = 0;
-            document.getElementById('total-alerts').textContent = '0';
-            document.getElementById('high-threat').textContent = '0';
-            document.getElementById('avg-confidence').textContent = '0%';
+
+        function clearAllAlerts() {
+            videoManager.videoIds.forEach(videoId => {
+                videoManager.clearVideoAlerts(videoId);
+            });
         }
-        // Start WebSocket connection
-        connectWebSocket();
+
+        async function refreshActiveStreams() {
+            try {
+                const response = await fetch('/active-streams');
+                const result = await response.json();
+                console.log('Active streams:', result);
+                alert(`Active streams: ${JSON.stringify(result.active_streams, null, 2)}`);
+            } catch (error) {
+                console.error('Error fetching active streams:', error);
+                alert('Error fetching active streams');
+            }
+        }
+
+        function simulateRandomDetection() {
+            videoManager.simulateRandomDetection();
+        }
+
+        // Auto-simulation control functions
+        function toggleAutoSimulation() {
+            if (videoManager.autoSimInterval) {
+                videoManager.stopAutoSimulation();
+            } else {
+                videoManager.startAutoSimulation();
+            }
+        }
+
+        // Initialize the multi-video manager
+        let videoManager;
+        
+        // Start the application when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            videoManager = new MultiVideoManager();
+        });
     </script>
 </body>
 </html> 

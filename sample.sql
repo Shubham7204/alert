@@ -12,6 +12,7 @@ CREATE TABLE security_alerts (
     person_id INT,
     detection_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     camera_location VARCHAR(255),
+    video_id VARCHAR(50),
     confidence_score FLOAT,
     status ENUM('NEW', 'ACKNOWLEDGED', 'RESOLVED') DEFAULT 'NEW',
     FOREIGN KEY (person_id) REFERENCES blacklisted_persons(id)
@@ -22,6 +23,7 @@ CREATE TABLE notification_queue (
     id INT PRIMARY KEY AUTO_INCREMENT,
     alert_id INT,
     message TEXT,
+    video_id VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (alert_id) REFERENCES security_alerts(id)
@@ -43,12 +45,13 @@ BEGIN
     SET alert_message = CONCAT(
         'SECURITY ALERT: Dangerous person "', person_name, 
         '" detected at ', NEW.camera_location, 
+        ' (Video: ', IFNULL(NEW.video_id, 'Unknown'), ')',
         ' with ', NEW.confidence_score, '% confidence at ', 
         NEW.detection_time
     );
     
-    INSERT INTO notification_queue (alert_id, message) 
-    VALUES (NEW.id, alert_message);
+    INSERT INTO notification_queue (alert_id, message, video_id) 
+    VALUES (NEW.id, alert_message, NEW.video_id);
 END$$
 DELIMITER ;
 
